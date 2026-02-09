@@ -2,6 +2,7 @@ package io.github.xinfra.lab.remoting.impl.message;
 
 import io.github.xinfra.lab.remoting.client.InvokeFuture;
 import io.github.xinfra.lab.remoting.common.IDGenerator;
+import io.github.xinfra.lab.remoting.common.NamedThreadFactory;
 import io.github.xinfra.lab.remoting.common.Wait;
 import io.github.xinfra.lab.remoting.connection.Connection;
 import io.github.xinfra.lab.remoting.exception.DeserializeException;
@@ -28,7 +29,9 @@ import org.mockito.ArgumentMatcher;
 
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static io.github.xinfra.lab.remoting.connection.Connection.CONNECTION;
 import static io.github.xinfra.lab.remoting.impl.handler.RequestApis.echoApi;
@@ -119,6 +122,78 @@ public class RemotingRequestMessageTypeHandlerTest {
 				return true;
 			}
 		}));
+	}
+
+	@Test
+	public void testHandleRequestWithCustomExecutor()
+			throws SerializeException, InterruptedException, TimeoutException {
+		// custom thread pool
+		final AtomicBoolean threadPoolExecuted = new AtomicBoolean(false);
+		ExecutorService executor = Executors.newSingleThreadExecutor(new ThreadFactory() {
+			@Override
+			public Thread newThread(Runnable r) {
+				return new Thread(r) {
+					@Override
+					public void run() {
+						threadPoolExecuted.set(true);
+						super.run();
+					}
+				};
+			}
+		});
+
+		// build a requestMessage
+		String content = "this is rpc content";
+		EchoRequest echoRequest = new EchoRequest(content);
+
+		Integer requestId = IDGenerator.nextRequestId();
+		RemotingRequestMessage requestMessage = new RemotingRequestMessage(requestId, MessageType.request,
+				SerializationType.Hession);
+		requestMessage.setPath(echoApi.path());
+		requestMessage.setHeaders(new DefaultMessageHeaders());
+		requestMessage.setBody(new RemotingMessageBody(echoRequest));
+		requestMessage.serialize();
+
+		MessageHandler messageHandler = protocol.getMessageHandler();
+		EchoRequestHandler echoRequestHandler = new EchoRequestHandler();
+		// set custom thread pool
+		echoRequestHandler.setExecutor(executor);
+		echoRequestHandler = spy(echoRequestHandler);
+		handlerRegistry.register(echoApi, echoRequestHandler);
+
+		ChannelHandlerContext context = mock(ChannelHandlerContext.class);
+		EmbeddedChannel channel = spy(new EmbeddedChannel());
+		doReturn(channel).when(context).channel();
+		doReturn(channel.newSucceededFuture()).when(channel).writeAndFlush(any());
+		new Connection(protocol, channel, executorService, timer);
+
+		messageHandler.handleMessage(context, requestMessage);
+
+		Wait.untilIsTrue(() -> {
+			try {
+				verify(channel, atLeastOnce()).writeAndFlush(any());
+				return true;
+			}
+			catch (Throwable t) {
+				return false;
+			}
+		}, 30, 100);
+
+		verify(echoRequestHandler, times(1)).asyncHandle(any(), any());
+		// verify response
+		verify(channel, times(1)).writeAndFlush(argThat(new ArgumentMatcher<RemotingResponseMessage>() {
+			@Override
+			public boolean matches(RemotingResponseMessage responseMessage) {
+				if (responseMessage.getResponseStatus() != ResponseStatus.OK) {
+					return false;
+				}
+				if (!responseMessage.getBody().getBodyValue().equals("echo:" + content)) {
+					return false;
+				}
+				return true;
+			}
+		}));
+		Assertions.assertTrue(threadPoolExecuted.get());
 	}
 
 	@Test
