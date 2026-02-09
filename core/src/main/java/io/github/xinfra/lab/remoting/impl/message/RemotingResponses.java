@@ -13,7 +13,6 @@ public class RemotingResponses {
 	}
 
 	public static <R> R getResponseObject(RemotingResponseMessage remotingResponseMessage) throws RemotingException {
-		// todo: fix classloader problem
 		remotingResponseMessage.deserialize();
 		ResponseStatus responseStatus = remotingResponseMessage.getResponseStatus();
 		RemotingMessageBody body = remotingResponseMessage.getBody();

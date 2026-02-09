@@ -392,6 +392,7 @@ public class RemotingRequestMessageTypeHandlerTest {
 
 		doThrow(new RuntimeException("testHandleResponseCallbackException")).when(future).executeCallBack(any());
 
+		// no exception throw out
 		messageHandler.handleMessage(context, responseMessage);
 
 		Wait.untilIsTrue(() -> {
