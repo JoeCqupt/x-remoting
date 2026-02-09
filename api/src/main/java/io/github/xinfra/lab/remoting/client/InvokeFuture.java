@@ -34,7 +34,8 @@ public class InvokeFuture<T extends ResponseMessage> implements Future<ResponseM
 
 	private volatile InvokeCallBack invokeCallBack;
 
-	private final AtomicBoolean callBackExecuted = new AtomicBoolean(false);
+	@AccessForTest
+	protected final AtomicBoolean callBackExecuted = new AtomicBoolean(false);
 
 	private final ClassLoader classLoader;
 
@@ -55,39 +56,39 @@ public class InvokeFuture<T extends ResponseMessage> implements Future<ResponseM
 		this.invokeCallBack = invokeCallBack;
 	}
 
-	public void asyncExecuteCallBack(Executor executor) {
-		try {
-			executor.execute(() -> {
-				try {
-					executeCallBack();
-				}
-				catch (Throwable t) {
-					log.error("executeCallBack fail. getId:{}", responseMessage.getId(), t);
-				}
-			});
-		}
-		catch (Exception e) {
-			log.error("asyncExecuteCallBack fail. getId:{}", responseMessage.getId(), e);
-		}
-	}
-
-	public void executeCallBack() {
+	public void executeCallBack(Executor executor) {
 		if (invokeCallBack != null) {
 			if (isDone()) {
 				if (callBackExecuted.compareAndSet(false, true)) {
-					ClassLoader contextClassLoader = null;
 					try {
-						ClassLoader appClassLoader = getAppClassLoader();
-						if (appClassLoader != null) {
-							contextClassLoader = Thread.currentThread().getContextClassLoader();
-							Thread.currentThread().setContextClassLoader(appClassLoader);
+						Executor callBackExecutor = invokeCallBack.getExecutor();
+						if (callBackExecutor == null) {
+							callBackExecutor = executor;
 						}
-						invokeCallBack.onMessage(responseMessage);
+						callBackExecutor.execute(() -> {
+							try {
+								ClassLoader contextClassLoader = null;
+								try {
+									ClassLoader appClassLoader = getAppClassLoader();
+									if (appClassLoader != null) {
+										contextClassLoader = Thread.currentThread().getContextClassLoader();
+										Thread.currentThread().setContextClassLoader(appClassLoader);
+									}
+									invokeCallBack.onMessage(responseMessage);
+								}
+								finally {
+									if (contextClassLoader != null) {
+										Thread.currentThread().setContextClassLoader(contextClassLoader);
+									}
+								}
+							}
+							catch (Exception e) {
+								log.error("executeCallBack task fail. id:{}", responseMessage.getId(), e);
+							}
+						});
 					}
-					finally {
-						if (contextClassLoader != null) {
-							Thread.currentThread().setContextClassLoader(contextClassLoader);
-						}
+					catch (Exception e) {
+						log.error("executeCallBack execute task fail. id:{}", responseMessage.getId(), e);
 					}
 				}
 			}

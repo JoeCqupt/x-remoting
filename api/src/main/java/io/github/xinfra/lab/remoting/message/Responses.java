@@ -1,6 +1,7 @@
 package io.github.xinfra.lab.remoting.message;
 
 import io.github.xinfra.lab.remoting.connection.Connection;
+import io.github.xinfra.lab.remoting.exception.ResponseStatusRuntimeException;
 import io.github.xinfra.lab.remoting.exception.SerializeException;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
@@ -8,6 +9,28 @@ import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public class Responses {
+
+	public static void handleExceptionResponse(Connection connection, Message msg, Exception e) {
+		if (isNeedResponse(msg)) {
+			if (e instanceof ResponseStatusRuntimeException) {
+				ResponseStatusRuntimeException statusException = (ResponseStatusRuntimeException) e;
+				ResponseMessage response = connection.getProtocol()
+					.getMessageFactory()
+					.createResponse(msg.getId(), msg.getSerializationType(), statusException.getResponseStatus());
+				Responses.sendResponse(connection, response);
+			}
+			else {
+				ResponseMessage response = connection.getProtocol()
+					.getMessageFactory()
+					.createResponse(msg.getId(), msg.getSerializationType(), ResponseStatus.Error, e);
+				Responses.sendResponse(connection, response);
+			}
+		}
+	}
+
+	public static boolean isNeedResponse(Message msg) {
+		return msg instanceof RequestMessage && !Requests.isOnewayRequest((RequestMessage) msg);
+	}
 
 	public static void sendResponse(Connection connection, ResponseMessage responseMessage) {
 		try {

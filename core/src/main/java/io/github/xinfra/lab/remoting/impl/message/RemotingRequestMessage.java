@@ -78,7 +78,11 @@ public class RemotingRequestMessage extends RemotingMessage implements RequestMe
 
 	@Override
 	public void deserialize() throws DeserializeException {
+		deserializePath();
 		super.deserialize();
+	}
+
+	public void deserializePath() {
 		if (!deserialized) {
 			deserialized = true;
 			if (pathData == null) {

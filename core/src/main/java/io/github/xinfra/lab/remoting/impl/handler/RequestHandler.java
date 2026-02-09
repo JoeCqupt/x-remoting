@@ -3,6 +3,8 @@ package io.github.xinfra.lab.remoting.impl.handler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.concurrent.Executor;
+
 public interface RequestHandler<T, R> {
 
 	Logger log = LoggerFactory.getLogger(RequestHandler.class);
@@ -20,5 +22,9 @@ public interface RequestHandler<T, R> {
 		}
 
 	}
+
+	default Executor getExecutor() {
+		return null;
+	};
 
 }
