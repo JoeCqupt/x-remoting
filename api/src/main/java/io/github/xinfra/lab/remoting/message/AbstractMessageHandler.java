@@ -39,45 +39,12 @@ public abstract class AbstractMessageHandler implements MessageHandler {
 		Connection connection = ctx.channel().attr(CONNECTION).get();
 		try {
 			MessageTypeHandler messageTypeHandler = messageTypeHandler(msg.getMessageType());
-			Executor executor = connection.getExecutor();
-
-			Runnable task = () -> {
-				try {
-					messageTypeHandler.handleMessage(connection, msg);
-				}
-				catch (Exception e) {
-					log.error("MessageTypeHandler handleMessage ex", e);
-					handleException(connection, msg, e);
-				}
-			};
-			executor.execute(task);
+			messageTypeHandler.handleMessage(connection, msg);
 		}
 		catch (Exception e) {
 			log.error("MessageHandler handleMessage ex", e);
-			handleException(connection, msg, e);
+			Responses.handleExceptionResponse(connection, msg, e);
 		}
-	}
-
-	protected void handleException(Connection connection, Message msg, Exception e) {
-		if (isNeedResponse(msg)) {
-			if (e instanceof ResponseStatusRuntimeException) {
-				ResponseStatusRuntimeException statusException = (ResponseStatusRuntimeException) e;
-				ResponseMessage response = connection.getProtocol()
-					.getMessageFactory()
-					.createResponse(msg.getId(), msg.getSerializationType(), statusException.getResponseStatus());
-				Responses.sendResponse(connection, response);
-			}
-			else {
-				ResponseMessage response = connection.getProtocol()
-					.getMessageFactory()
-					.createResponse(msg.getId(), msg.getSerializationType(), ResponseStatus.Error, e);
-				Responses.sendResponse(connection, response);
-			}
-		}
-	}
-
-	private boolean isNeedResponse(Message msg) {
-		return msg instanceof RequestMessage && !Requests.isOnewayRequest((RequestMessage) msg);
 	}
 
 }

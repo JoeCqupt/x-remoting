@@ -16,39 +16,23 @@ public interface RemotingCallBack<R> extends InvokeCallBack {
 
 	@Override
 	default void onMessage(ResponseMessage responseMessage) {
-		Runnable task = () -> {
+		try {
+			RemotingResponseMessage remotingResponseMessage = (RemotingResponseMessage) responseMessage;
+			Object responseObject = RemotingResponses.getResponseObject(remotingResponseMessage);
 			try {
-				RemotingResponseMessage remotingResponseMessage = (RemotingResponseMessage) responseMessage;
-				Object responseObject = RemotingResponses.getResponseObject(remotingResponseMessage);
-				try {
-					onResponse((R) responseObject);
-				}
-				catch (Throwable t) {
-					LOGGER.error("call back execute onResponse fail.", t);
-				}
+				onResponse((R) responseObject);
 			}
 			catch (Throwable t) {
-				try {
-					onException(t);
-				}
-				catch (Throwable throwable) {
-					LOGGER.error("call back execute onException fail.", throwable);
-				}
-			}
-		};
-
-		Executor executor = this.getExecutor();
-
-		if (executor != null) {
-			try {
-				executor.execute(task);
-			}
-			catch (RejectedExecutionException re) {
-				LOGGER.error("fail execute callback. id:{}", responseMessage.getId(), re);
+				LOGGER.error("call back execute onResponse fail.", t);
 			}
 		}
-		else {
-			task.run();
+		catch (Throwable t) {
+			try {
+				onException(t);
+			}
+			catch (Throwable throwable) {
+				LOGGER.error("call back execute onException fail.", throwable);
+			}
 		}
 	}
 

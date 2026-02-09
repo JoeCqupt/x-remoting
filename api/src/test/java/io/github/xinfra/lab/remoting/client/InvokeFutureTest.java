@@ -1,7 +1,6 @@
 package io.github.xinfra.lab.remoting.client;
 
 import io.github.xinfra.lab.remoting.common.IDGenerator;
-import io.github.xinfra.lab.remoting.common.Wait;
 import io.github.xinfra.lab.remoting.message.Message;
 import io.github.xinfra.lab.remoting.message.RequestMessage;
 import io.github.xinfra.lab.remoting.message.ResponseMessage;
@@ -13,16 +12,14 @@ import org.junit.jupiter.api.Test;
 
 import java.net.URL;
 import java.net.URLClassLoader;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.atLeast;
-import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -116,45 +113,18 @@ public class InvokeFutureTest {
 	}
 
 	@Test
-	public void testCallBackSync() {
-		AtomicBoolean callbackExecuted = new AtomicBoolean(false);
-		AtomicInteger callBackExecuteTimes = new AtomicInteger(0);
-		InvokeCallBack callBack = message -> {
-			callbackExecuted.set(true);
-			callBackExecuteTimes.getAndIncrement();
-		};
-		invokeFuture.addCallBack(callBack);
-
-		// test repeat add
-		Assertions.assertThrows(IllegalArgumentException.class, () -> {
-			invokeFuture.addCallBack(callBack);
-		});
-
-		ResponseMessage responseMessage = mock(ResponseMessage.class);
-		invokeFuture.complete(responseMessage);
-		invokeFuture.executeCallBack();
-		Assertions.assertTrue(callbackExecuted.get());
-		Assertions.assertEquals(1, callBackExecuteTimes.get());
-
-		// test multiple execute
-		invokeFuture.executeCallBack();
-		Assertions.assertTrue(callbackExecuted.get());
-		Assertions.assertEquals(1, callBackExecuteTimes.get());
-	}
-
-	@Test
-	public void testCallBackAsync() throws InterruptedException, TimeoutException {
+	public void testCallBack() throws InterruptedException, TimeoutException {
 		invokeFuture = spy(invokeFuture);
 
 		ExecutorService executorService = Executors.newCachedThreadPool();
 
-		AtomicBoolean callbackExecuted = new AtomicBoolean(false);
+		CountDownLatch countDownLatch = new CountDownLatch(1);
 		AtomicInteger callBackExecuteTimes = new AtomicInteger(0);
 		InvokeCallBack callBack = new InvokeCallBack() {
 			@Override
 			public void onMessage(ResponseMessage message) {
-				callbackExecuted.set(true);
 				callBackExecuteTimes.getAndIncrement();
+				countDownLatch.countDown();
 			}
 		};
 
@@ -163,37 +133,17 @@ public class InvokeFutureTest {
 
 		ResponseMessage responseMessage = mock(ResponseMessage.class);
 		invokeFuture.complete(responseMessage);
-		invokeFuture.asyncExecuteCallBack(executorService);
+		Assertions.assertFalse(invokeFuture.callBackExecuted.get());
+		invokeFuture.executeCallBack(executorService);
+		countDownLatch.await(3, TimeUnit.SECONDS);
 
-		InvokeCallBack finalCallBack = callBack;
-		Wait.untilIsTrue(() -> {
-			try {
-				verify(invokeFuture, atLeastOnce()).executeCallBack();
-				verify(finalCallBack, atLeastOnce()).onMessage(eq(responseMessage));
-				return true;
-			}
-			catch (Throwable t) {
-				return false;
-			}
-		}, 30, 100);
-
-		Assertions.assertTrue(callbackExecuted.get());
 		Assertions.assertEquals(1, callBackExecuteTimes.get());
-		verify(finalCallBack, times(1)).onMessage(eq(responseMessage));
+		Assertions.assertTrue(invokeFuture.callBackExecuted.get());
+		verify(callBack, times(1)).onMessage(eq(responseMessage));
 
 		// test multiple execute
-		invokeFuture.asyncExecuteCallBack(executorService);
-		Wait.untilIsTrue(() -> {
-			try {
-				verify(invokeFuture, atLeast(2)).executeCallBack();
-				return true;
-			}
-			catch (Throwable t) {
-				return false;
-			}
-		}, 30, 100);
-
-		verify(invokeFuture, times(2)).executeCallBack();
+		invokeFuture.executeCallBack(executorService);
+		TimeUnit.SECONDS.sleep(3);
 		Assertions.assertEquals(1, callBackExecuteTimes.get());
 
 		executorService.shutdownNow();

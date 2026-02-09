@@ -111,7 +111,7 @@ public class Connection {
 					.createResponse(requestId, invokeFuture.getRequestMessage().getSerializationType(),
 							ResponseStatus.ConnectionClosed);
 				invokeFuture.complete(responseMessage);
-				invokeFuture.asyncExecuteCallBack(getExecutor());
+				invokeFuture.executeCallBack(getExecutor());
 			}
 		}
 	}

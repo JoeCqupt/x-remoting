@@ -353,7 +353,7 @@ public class RemotingRequestMessageTypeHandlerTest {
 
 		Wait.untilIsTrue(() -> {
 			try {
-				verify(future, atLeastOnce()).executeCallBack();
+				verify(future, atLeastOnce()).executeCallBack(any());
 				return true;
 			}
 			catch (Throwable t) {
@@ -363,7 +363,7 @@ public class RemotingRequestMessageTypeHandlerTest {
 
 		verify(future, times(1)).cancelTimeout();
 		verify(future, times(1)).complete(eq(responseMessage));
-		verify(future, times(1)).executeCallBack();
+		verify(future, times(1)).executeCallBack(any());
 
 	}
 
@@ -390,13 +390,13 @@ public class RemotingRequestMessageTypeHandlerTest {
 		InvokeFuture future = mock(InvokeFuture.class);
 		doReturn(future).when(connection).removeInvokeFuture(eq(requestId));
 
-		doThrow(new RuntimeException("testHandleResponseCallbackException")).when(future).executeCallBack();
+		doThrow(new RuntimeException("testHandleResponseCallbackException")).when(future).executeCallBack(any());
 
 		messageHandler.handleMessage(context, responseMessage);
 
 		Wait.untilIsTrue(() -> {
 			try {
-				verify(future, atLeastOnce()).executeCallBack();
+				verify(future, atLeastOnce()).executeCallBack(any());
 				return true;
 			}
 			catch (Throwable t) {
@@ -406,7 +406,7 @@ public class RemotingRequestMessageTypeHandlerTest {
 
 		verify(future, times(1)).cancelTimeout();
 		verify(future, times(1)).complete(eq(responseMessage));
-		verify(future, times(1)).executeCallBack();
+		verify(future, times(1)).executeCallBack(any());
 
 	}
 

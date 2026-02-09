@@ -128,7 +128,7 @@ public interface Call {
 				ResponseMessage responseMessage = messageFactory.createResponse(requestId,
 						requestMessage.getSerializationType(), ResponseStatus.Timeout);
 				future.complete(responseMessage);
-				future.asyncExecuteCallBack(connection.getExecutor());
+				future.executeCallBack(connection.getExecutor());
 			}
 		}, callOptions.getTimeoutMills(), TimeUnit.MILLISECONDS);
 		invokeFuture.addTimeout(timeout);
@@ -147,7 +147,7 @@ public interface Call {
 								requestMessage.getSerializationType(), ResponseStatus.SendFailed,
 								channelFuture.cause());
 						future.complete(responseMessage);
-						future.asyncExecuteCallBack(connection.getExecutor());
+						future.executeCallBack(connection.getExecutor());
 					}
 
 				}
@@ -162,7 +162,7 @@ public interface Call {
 				ResponseMessage responseMessage = messageFactory.createResponse(requestId,
 						requestMessage.getSerializationType(), ResponseStatus.SendFailed, t);
 				future.complete(responseMessage);
-				future.asyncExecuteCallBack(connection.getExecutor());
+				future.executeCallBack(connection.getExecutor());
 			}
 		}
 
